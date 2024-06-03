@@ -35,6 +35,7 @@ async function run() {
   try {
     const db = client.db("Contest-Hub");
     const popularCollection = db.collection("popular");
+    const advertiseCollection=db.collection("advertise");
 
     // get all popular data from popular collection
     app.get("/popular", async (req, res) => {
@@ -50,6 +51,13 @@ async function run() {
         const result = await popularCollection.findOne(query)
         res.send(result)
       })
+
+       // get all advertise data from  db
+    app.get("/advertise", async (req, res) => {
+      const result = await advertiseCollection.find().toArray();
+      // console.log(result);
+      res.send(result);
+    });
 
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
