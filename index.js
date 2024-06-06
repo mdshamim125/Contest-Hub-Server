@@ -35,7 +35,9 @@ async function run() {
   try {
     const db = client.db("Contest-Hub");
     const popularCollection = db.collection("popular");
-    const advertiseCollection=db.collection("advertise");
+    const advertiseCollection = db.collection("advertise");
+    const creatorsCollection = db.collection("creators");
+    const contestCollection = db.collection("contests");
 
     // get all popular data from popular collection
     app.get("/popular", async (req, res) => {
@@ -44,17 +46,33 @@ async function run() {
       res.send(result);
     });
 
-       // Get a single popular data from db using _id
-       app.get('/popular/:id', async (req, res) => {
-        const id = req.params.id
-        const query = { _id: new ObjectId(id) }
-        const result = await popularCollection.findOne(query)
-        res.send(result)
-      })
+    // Get a single popular data from db using _id
+    app.get("/popular/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await popularCollection.findOne(query);
+      res.send(result);
+    });
 
-       // get all advertise data from  db
+    // get all advertise data from  db
     app.get("/advertise", async (req, res) => {
       const result = await advertiseCollection.find().toArray();
+      // console.log(result);
+      res.send(result);
+    });
+
+    // get all creators data from  db
+    app.get("/creators", async (req, res) => {
+      const result = await creatorsCollection.find().toArray();
+      // console.log(result);
+      res.send(result);
+    });
+
+    // Save a contest data in db
+    app.post("/contests", async (req, res) => {
+      const contestData = req.body;
+      // console.log(contestData);
+      const result = await contestCollection.insertOne(contestData);
       // console.log(result);
       res.send(result);
     });
