@@ -85,13 +85,36 @@ async function run() {
       res.send(result);
     });
 
-     // delete a contest
-     app.delete('/contests/:id', async (req, res) => {
-      const id = req.params.id
-      const query = { _id: new ObjectId(id) }
-      const result = await contestCollection.deleteOne(query)
-      res.send(result)
-    })
+ 
+
+    // delete a contest
+    app.delete("/contests/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await contestCollection.deleteOne(query);
+      res.send(result);
+    });
+
+       // get single contest for creator
+       app.get("/contest/:id", async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await contestCollection.findOne(query);
+        res.send(result);
+      });
+
+    // update contest data
+    app.put("/contest/update/:id", async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const contestData = req.body;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: contestData,
+      };
+      const result = await contestCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
 
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
