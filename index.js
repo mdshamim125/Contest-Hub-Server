@@ -38,6 +38,7 @@ async function run() {
     const advertiseCollection = db.collection("advertise");
     const creatorsCollection = db.collection("creators");
     const contestCollection = db.collection("contests");
+    const usersCollection = db.collection("users");
 
     // get all popular data from popular collection
     app.get("/popular", async (req, res) => {
@@ -85,8 +86,6 @@ async function run() {
       res.send(result);
     });
 
- 
-
     // delete a contest
     app.delete("/contests/:id", async (req, res) => {
       const id = req.params.id;
@@ -95,13 +94,13 @@ async function run() {
       res.send(result);
     });
 
-       // get single contest for creator
-       app.get("/contest/:id", async (req, res) => {
-        const id = req.params.id;
-        const query = { _id: new ObjectId(id) };
-        const result = await contestCollection.findOne(query);
-        res.send(result);
-      });
+    // get single contest for creator
+    app.get("/contest/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await contestCollection.findOne(query);
+      res.send(result);
+    });
 
     // update contest data
     app.put("/contest/update/:id", async (req, res) => {
@@ -113,6 +112,29 @@ async function run() {
         $set: contestData,
       };
       const result = await contestCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
+    // save a user data in db
+    app.put("/user", async (req, res) => {
+      const user = req.body;
+
+      const query = { email: user?.email };
+      // check if user already exists in db
+      const isExist = await usersCollection.findOne(query);
+      if (isExist) {
+        return res.send(isExist);
+      }
+
+      // save user for the first time
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: {
+          ...user,
+          timestamp: Date.now(),
+        },
+      };
+      const result = await usersCollection.updateOne(query, updateDoc, options);
       res.send(result);
     });
 
