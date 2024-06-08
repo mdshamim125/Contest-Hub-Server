@@ -91,16 +91,43 @@ async function run() {
     };
 
     // users related api
-    app.get(
-      "/users",
-      verifyToken,
-      verifyAdmin,
-      verifyCreator,
-      async (req, res) => {
-        const result = await usersCollection.find().toArray();
-        res.send(result);
-      }
-    );
+    // get all users data from db
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+
+    //update a user role
+    app.patch("/users/update/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const query = { email };
+      const updateDoc = {
+        $set: { ...user, timestamp: Date.now() },
+      };
+      const result = await usersCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
+    //update a user status
+    app.patch("/users/status/update/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const query = { email };
+      const updateDoc = {
+        $set: { ...user, timestamp: Date.now() },
+      };
+      const result = await usersCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
+    // delete a user
+    app.delete("/users/delete/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email };
+      const result = await usersCollection.deleteOne(query);
+      res.send(result);
+    });
 
     app.get("/users/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
@@ -188,9 +215,12 @@ async function run() {
     // Save a contest data in db
     app.post("/contests", async (req, res) => {
       const contestData = req.body;
-      // console.log(contestData);
+      const user = await usersCollection.findOne(query);
+      const isBlocked = user?.status === "Blocked";
+      if (isBlocked) {
+        return res.status(403).send({ message: "forbidden for add contest" });
+      }
       const result = await contestCollection.insertOne(contestData);
-      // console.log(result);
       res.send(result);
     });
     // get all contest for creator
