@@ -205,6 +205,49 @@ async function run() {
       res.send(result);
     });
 
+    // Fetch all contests
+    app.get("/contests", async (req, res) => {
+      const contests = await contestCollection.find({}).toArray();
+      // console.log(contests);
+      res.send(contests);
+    });
+
+    // Delete a contest
+    app.delete("/contests/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await contestCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // Confirm and publish a contest
+    app.patch("/contests/confirm/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          status: "confirmed",
+          published: true,
+        },
+      };
+      const result = await contestCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
+    // Add a comment to a contest
+    app.post("/contests/comment/:id", async (req, res) => {
+      const id = req.params.id;
+      const comment = req.body.comment;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $push: {
+          comments: comment,
+        },
+      };
+      const result = await contestCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
     // get all popular data from popular collection
     app.get("/popular", async (req, res) => {
       const result = await popularCollection.find().toArray();
