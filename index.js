@@ -206,14 +206,14 @@ async function run() {
     });
 
     // Fetch all contests
-    app.get("/contests", async (req, res) => {
+    app.get("/contests", verifyToken, verifyAdmin, async (req, res) => {
       const contests = await contestCollection.find({}).toArray();
       // console.log(contests);
       res.send(contests);
     });
 
     // Delete a contest
-    app.delete("/contests/:id", async (req, res) => {
+    app.delete("/contests/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await contestCollection.deleteOne(query);
@@ -221,32 +221,42 @@ async function run() {
     });
 
     // Confirm and publish a contest
-    app.patch("/contests/confirm/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $set: {
-          status: "confirmed",
-          published: true,
-        },
-      };
-      const result = await contestCollection.updateOne(query, updateDoc);
-      res.send(result);
-    });
+    app.patch(
+      "/contests/confirm/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            status: "confirmed",
+            published: true,
+          },
+        };
+        const result = await contestCollection.updateOne(query, updateDoc);
+        res.send(result);
+      }
+    );
 
     // Add a comment to a contest
-    app.post("/contests/comment/:id", async (req, res) => {
-      const id = req.params.id;
-      const comment = req.body.comment;
-      const query = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $push: {
-          comments: comment,
-        },
-      };
-      const result = await contestCollection.updateOne(query, updateDoc);
-      res.send(result);
-    });
+    app.post(
+      "/contests/comment/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const comment = req.body.comment;
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $push: {
+            comments: comment,
+          },
+        };
+        const result = await contestCollection.updateOne(query, updateDoc);
+        res.send(result);
+      }
+    );
 
     // get all popular data from popular collection
     app.get("/popular", async (req, res) => {
@@ -284,7 +294,7 @@ async function run() {
       const query = { email: userEmail };
       const user = await usersCollection.findOne(query);
       const isBlocked = user?.status === "Blocked";
-      console.log(isBlocked);
+      // console.log(isBlocked);
       if (isBlocked) {
         return res
           .status(401)
@@ -335,7 +345,7 @@ async function run() {
       verifyCreator,
       async (req, res) => {
         const id = req.params.id;
-        console.log(id);
+        // console.log(id);
         const contestData = req.body;
         const query = { _id: new ObjectId(id) };
         const updateDoc = {
@@ -345,6 +355,28 @@ async function run() {
         res.send(result);
       }
     );
+
+    // Fetch all confirmed contests
+    app.get("/all-contests", async (req, res) => {
+      const contests = await contestCollection
+        .find({ status: "confirmed" })
+        .toArray();
+      res.send(contests);
+    });
+
+    // Fetch contest details
+    app.get("/contests/:id", async (req, res) => {
+      const { id } = req.params;
+      try {
+        const contest = await contestCollection.findOne({
+          _id: new ObjectId(id),
+        });
+        res.send(contest);
+      } catch (error) {
+        console.error("Error fetching contest details:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
 
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
