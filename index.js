@@ -401,42 +401,76 @@ async function run() {
     });
     // Add a user to a contest
     app.post("/contests/register/:id", verifyToken, async (req, res) => {
-      try {
-        const contestId = req.params.id;
-        const { userId, userName, userEmail } = req.body;
-        const query = { _id: new ObjectId(contestId) };
-         console.log(query);
-        // Check if the user has already registered for the contest
-        const contest = await contestCollection.findOne(query);
-        console.log(contest);
-        if (
-          contest?.participants?.some(
-            (participant) => participant.userId === userId
-          )
-        ) {
-          return res
-            .status(400)
-            .send({ message: "User already registered for this contest" });
-        }
-
-        // Add participant
-        const updateDoc = {
-          $push: {
-            participants: { userId, userName, userEmail },
-          },
-          $inc: {
-            participantsCount: 1,
-          },
-        };
-
-        const result = await contestCollection.updateOne(query, updateDoc);
-        console.log(result);
-        res.send(result);
-      } catch (error) {
-        console.error(error);
-        res.status(500).send({ message: "Server error" });
+      const contestId = req.params.id;
+      const { userId, userName, userEmail } = req.body;
+      const query = { _id: new ObjectId(contestId) };
+      console.log(query);
+      // Check if the user has already registered for the contest
+      const contest = await contestCollection.findOne(query);
+      console.log(contest);
+      if (
+        contest?.participants?.some(
+          (participant) => participant.userId === userId
+        )
+      ) {
+        return res
+          .status(400)
+          .send({ message: "User already registered for this contest" });
       }
+
+      // Add participant
+      const updateDoc = {
+        $push: {
+          participants: { userId, userName, userEmail },
+        },
+        $inc: {
+          participantsCount: 1,
+        },
+      };
+
+      const result = await contestCollection.updateOne(query, updateDoc);
+      console.log(result);
+      res.send(result);
     });
+
+    // // Get contests participated by the user
+    // app.get("/contests/my-participated", verifyToken, async (req, res) => {
+    //   const userEmail = req.user?.email;
+    //   const contests = await contestCollection
+    //     .find({
+    //       "participants.userEmail": userEmail,
+    //     })
+    //     .toArray();
+    //   res.send(contests);
+    // });
+
+    // Get contests participated by the user
+    app.get(
+      "/contests/my-participated/:email",
+      verifyToken,
+      async (req, res) => {
+        try {
+          const userEmail = req.params.email;
+
+          // Ensure userEmail is available
+          if (!userEmail) {
+            return res.status(400).send({ message: "User email not provided" });
+          }
+
+          // Query to find contests where the user has participated and include payment status
+          const contests = await contestCollection
+            .find({
+              "participants.userEmail": userEmail,
+            })
+            .toArray();
+
+          res.send(contests);
+        } catch (error) {
+          console.error("Error fetching participated contests:", error);
+          res.status(500).send({ message: "Server error" });
+        }
+      }
+    );
 
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
