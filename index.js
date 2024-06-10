@@ -4,6 +4,7 @@ require("dotenv").config();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 
 // middleware
@@ -40,6 +41,7 @@ async function run() {
     const creatorsCollection = db.collection("creators");
     const contestCollection = db.collection("contests");
     const usersCollection = db.collection("users");
+    const paymentsCollection = db.collection("payments");
 
     // jwt related api
     app.post("/jwt", async (req, res) => {
@@ -367,14 +369,72 @@ async function run() {
     // Fetch contest details
     app.get("/contests/:id", async (req, res) => {
       const { id } = req.params;
+
+      const result = await contestCollection.findOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    });
+
+    // payment intent
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      console.log(amount, "amount inside the intent");
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+
+    app.post("/payments", async (req, res) => {
+      const payment = req.body;
+      const paymentResult = await paymentsCollection.insertOne(payment);
+      // console.log("payment info", payment);
+      res.send(paymentResult);
+    });
+    // Add a user to a contest
+    app.post("/contests/register/:id", verifyToken, async (req, res) => {
       try {
-        const contest = await contestCollection.findOne({
-          _id: new ObjectId(id),
-        });
-        res.send(contest);
+        const contestId = req.params.id;
+        const { userId, userName, userEmail } = req.body;
+        const query = { _id: new ObjectId(contestId) };
+         console.log(query);
+        // Check if the user has already registered for the contest
+        const contest = await contestCollection.findOne(query);
+        console.log(contest);
+        if (
+          contest?.participants?.some(
+            (participant) => participant.userId === userId
+          )
+        ) {
+          return res
+            .status(400)
+            .send({ message: "User already registered for this contest" });
+        }
+
+        // Add participant
+        const updateDoc = {
+          $push: {
+            participants: { userId, userName, userEmail },
+          },
+          $inc: {
+            participantsCount: 1,
+          },
+        };
+
+        const result = await contestCollection.updateOne(query, updateDoc);
+        console.log(result);
+        res.send(result);
       } catch (error) {
-        console.error("Error fetching contest details:", error);
-        res.status(500).send({ message: "Internal server error" });
+        console.error(error);
+        res.status(500).send({ message: "Server error" });
       }
     });
 
