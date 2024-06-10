@@ -36,7 +36,6 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     const db = client.db("Contest-Hub");
-    const popularCollection = db.collection("popular");
     const advertiseCollection = db.collection("advertise");
     const creatorsCollection = db.collection("creators");
     const contestCollection = db.collection("contests");
@@ -140,6 +139,19 @@ async function run() {
       }
     );
 
+    //update a user
+    app.put("/users/:email", verifyToken, async (req, res) => {
+      const userEmail = req.params.email;
+      const updateData = req.body;
+      console.log(userEmail, updateData);
+      const query = { email: userEmail };
+      const updateDoc = {
+        $set: { ...updateData },
+      };
+      const result = await usersCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
     // delete a user
     app.delete(
       "/users/delete/:email",
@@ -152,37 +164,6 @@ async function run() {
         res.send(result);
       }
     );
-
-    // app.get("/users/admin/:email", verifyToken, async (req, res) => {
-    //   const email = req.params.email;
-
-    //   if (email !== req.decoded.email) {
-    //     return res.status(403).send({ message: "forbidden access" });
-    //   }
-
-    //   const query = { email: email };
-    //   const user = await usersCollection.findOne(query);
-    //   let admin = false;
-    //   if (user) {
-    //     admin = user?.role === "admin";
-    //   }
-    //   res.send({ admin });
-    // });
-    // app.get("/users/creator/:email", verifyToken, async (req, res) => {
-    //   const email = req.params.email;
-
-    //   if (email !== req.decoded.email) {
-    //     return res.status(403).send({ message: "forbidden access" });
-    //   }
-
-    //   const query = { email: email };
-    //   const user = await usersCollection.findOne(query);
-    //   let creator = false;
-    //   if (user) {
-    //     creator = user?.role === "creator";
-    //   }
-    //   res.send({ creator });
-    // });
 
     // save a user data in db
     app.put("/user", async (req, res) => {
@@ -260,11 +241,20 @@ async function run() {
       }
     );
 
-    // get all popular data from popular collection
-    app.get("/popular", async (req, res) => {
-      const result = await popularCollection.find().toArray();
-      // console.log(result);
-      res.send(result);
+    app.get("/contests/popular", async (req, res) => {
+      const popularContests = await contestCollection
+        .aggregate([
+          {
+            $addFields: {
+              participantsCount: { $size: "$participants" },
+            },
+          },
+          { $sort: { participantsCount: -1 } },
+          { $limit: 5 },
+        ])
+        .toArray();
+
+      res.send(popularContests);
     });
 
     // Get a single popular data from db using _id
@@ -282,14 +272,32 @@ async function run() {
       res.send(result);
     });
 
-    // get all creators data from  db
     app.get("/creators", async (req, res) => {
-      const result = await creatorsCollection.find().toArray();
-      // console.log(result);
-      res.send(result);
+      const topCreators = await contestCollection
+        .aggregate([
+          {
+            $group: {
+              _id: "$creator.email",
+              creatorName: { $first: "$creator.name" },
+              creatorImage: { $first: "$creator.image" },
+              totalParticipants: { $sum: "$participantsCount" },
+              contests: {
+                $push: {
+                  contestName: "$contestName",
+                  contestDescription: "$description",
+                  participantsCount: "$participantsCount",
+                },
+              },
+            },
+          },
+          { $sort: { totalParticipants: -1 } },
+          { $limit: 3 },
+        ])
+        .toArray();
+
+      res.send(topCreators);
     });
 
-    // add a contest data in db
     app.post("/contests", verifyToken, verifyCreator, async (req, res) => {
       const contestData = req.body;
       const userEmail = contestData?.creator?.email;
@@ -407,7 +415,7 @@ async function run() {
       console.log(query);
       // Check if the user has already registered for the contest
       const contest = await contestCollection.findOne(query);
-      console.log(contest);
+      // console.log(contest);
       if (
         contest?.participants?.some(
           (participant) => participant.userId === userId
@@ -429,29 +437,29 @@ async function run() {
       };
 
       const result = await contestCollection.updateOne(query, updateDoc);
-      console.log(result);
+      // console.log(result);
       res.send(result);
     });
 
-    // // Get contests participated by the user
-    // app.get("/contests/my-participated", verifyToken, async (req, res) => {
-    //   const userEmail = req.user?.email;
-    //   const contests = await contestCollection
-    //     .find({
-    //       "participants.userEmail": userEmail,
-    //     })
-    //     .toArray();
-    //   res.send(contests);
-    // });
+    // get all contests created by a creator/user
+    app.get("/contests/created-by/:email", verifyToken, async (req, res) => {
+      const userEmail = req.params.email;
+      // console.log(userEmail);
+      const contests = await contestCollection
+        .find({ "creator.email": userEmail })
+        .toArray();
+      // console.log(contests);
+      res.send(contests);
+    });
 
-    // Get contests participated by the user
+    // Get contests participated by a user
     app.get(
       "/contests/my-participated/:email",
       verifyToken,
       async (req, res) => {
         try {
           const userEmail = req.params.email;
-
+          // console.log(userEmail);
           // Ensure userEmail is available
           if (!userEmail) {
             return res.status(400).send({ message: "User email not provided" });
@@ -463,6 +471,7 @@ async function run() {
               "participants.userEmail": userEmail,
             })
             .toArray();
+          // console.log(contests);
 
           res.send(contests);
         } catch (error) {
@@ -471,6 +480,21 @@ async function run() {
         }
       }
     );
+
+    // Get all submissions for a specific contest
+    app.get("/contests/:contestId/submissions", async (req, res) => {
+      const contestId = req.params.contestId;
+      // console.log(contestId);
+      const contest = await contestCollection.findOne({
+        _id: new ObjectId(contestId),
+      });
+      // console.log(contest);
+      if (!contest) {
+        return res.status(404).send({ message: "Contest not found" });
+      }
+
+      res.send(contest.participants || []);
+    });
 
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
