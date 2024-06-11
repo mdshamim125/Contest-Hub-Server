@@ -37,7 +37,6 @@ async function run() {
   try {
     const db = client.db("Contest-Hub");
     const advertiseCollection = db.collection("advertise");
-    const creatorsCollection = db.collection("creators");
     const contestCollection = db.collection("contests");
     const usersCollection = db.collection("users");
     const paymentsCollection = db.collection("payments");
@@ -91,7 +90,6 @@ async function run() {
       next();
     };
 
-    // users related api
     // get all users data from db
     app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
@@ -143,7 +141,7 @@ async function run() {
     app.put("/users/:email", verifyToken, async (req, res) => {
       const userEmail = req.params.email;
       const updateData = req.body;
-      console.log(userEmail, updateData);
+      // console.log(userEmail, updateData);
       const query = { email: userEmail };
       const updateDoc = {
         $set: { ...updateData },
@@ -170,7 +168,6 @@ async function run() {
       const user = req.body;
 
       const query = { email: user?.email };
-      // check if user already exists in db
       const isExist = await usersCollection.findOne(query);
       if (isExist) {
         return res.send(isExist);
@@ -266,14 +263,6 @@ async function run() {
 
       res.send(popularContests);
     });
-
-    // // Get a single popular data from db using _id
-    // app.get("/popular/:id", async (req, res) => {
-    //   const id = req.params.id;
-    //   const query = { _id: new ObjectId(id) };
-    //   const result = await popularCollection.findOne(query);
-    //   res.send(result);
-    // });
 
     // get all advertise data from  db
     app.get("/advertise", async (req, res) => {
@@ -407,7 +396,7 @@ async function run() {
     });
 
     // Fetch contest details
-    app.get("/contests/:id", async (req, res) => {
+    app.get("/contests/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       if (!ObjectId.isValid(id)) {
         return res.status(400).send({ message: "Invalid ObjectId format" });
@@ -419,10 +408,10 @@ async function run() {
     });
 
     // payment intent
-    app.post("/create-payment-intent", async (req, res) => {
+    app.post("/create-payment-intent", verifyToken, async (req, res) => {
       const { price } = req.body;
       const amount = parseInt(price * 100);
-      console.log(amount, "amount inside the intent");
+      // console.log(amount, "amount inside the intent");
 
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amount,
@@ -435,7 +424,7 @@ async function run() {
       });
     });
 
-    app.post("/payments", async (req, res) => {
+    app.post("/payments", verifyToken, async (req, res) => {
       const payment = req.body;
       const paymentResult = await paymentsCollection.insertOne(payment);
       // console.log("payment info", payment);
@@ -446,8 +435,7 @@ async function run() {
       const contestId = req.params.id;
       const { userId, userName, userEmail } = req.body;
       const query = { _id: new ObjectId(contestId) };
-      console.log(query);
-      // Check if the user has already registered for the contest
+      // console.log(query);
       const contest = await contestCollection.findOne(query);
       // console.log(contest);
       if (
@@ -494,12 +482,10 @@ async function run() {
         try {
           const userEmail = req.params.email;
           // console.log(userEmail);
-          // Ensure userEmail is available
           if (!userEmail) {
             return res.status(400).send({ message: "User email not provided" });
           }
 
-          // Query to find contests where the user has participated and include payment status
           const contests = await contestCollection
             .find({
               "participants.userEmail": userEmail,
@@ -548,5 +534,5 @@ app.get("/", (req, res) => {
   res.send("Hello World!");
 });
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+  console.log(`Contest Hub listening on port ${port}`);
 });
