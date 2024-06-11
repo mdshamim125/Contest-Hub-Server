@@ -188,6 +188,16 @@ async function run() {
       res.send(result);
     });
 
+    //get contest by searching with tag in the banner section
+    app.get("/api/contests", async (req, res) => {
+      const { tag } = req.query;
+      const result = await contestCollection
+        .find({ category: { $regex: tag, $options: "i" } })
+        .toArray();
+      console.log(result);
+      res.send(result);
+    });
+
     // Fetch all contests
     app.get("/contests", verifyToken, verifyAdmin, async (req, res) => {
       const contests = await contestCollection.find({}).toArray();
@@ -257,13 +267,13 @@ async function run() {
       res.send(popularContests);
     });
 
-    // Get a single popular data from db using _id
-    app.get("/popular/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await popularCollection.findOne(query);
-      res.send(result);
-    });
+    // // Get a single popular data from db using _id
+    // app.get("/popular/:id", async (req, res) => {
+    //   const id = req.params.id;
+    //   const query = { _id: new ObjectId(id) };
+    //   const result = await popularCollection.findOne(query);
+    //   res.send(result);
+    // });
 
     // get all advertise data from  db
     app.get("/advertise", async (req, res) => {
@@ -272,30 +282,52 @@ async function run() {
       res.send(result);
     });
 
+    //get creators data from db
     app.get("/creators", async (req, res) => {
-      const topCreators = await contestCollection
-        .aggregate([
-          {
-            $group: {
-              _id: "$creator.email",
-              creatorName: { $first: "$creator.name" },
-              creatorImage: { $first: "$creator.image" },
-              totalParticipants: { $sum: "$participantsCount" },
-              contests: {
-                $push: {
-                  contestName: "$contestName",
-                  contestDescription: "$description",
-                  participantsCount: "$participantsCount",
+      try {
+        const topCreators = await contestCollection
+          .aggregate([
+            {
+              $match: {
+                participants: { $exists: true, $not: { $type: "null" } },
+              },
+            },
+            {
+              $addFields: {
+                participantsCount: {
+                  $cond: {
+                    if: { $isArray: "$participants" },
+                    then: { $size: "$participants" },
+                    else: 0,
+                  },
                 },
               },
             },
-          },
-          { $sort: { totalParticipants: -1 } },
-          { $limit: 3 },
-        ])
-        .toArray();
+            {
+              $group: {
+                _id: "$creator.email",
+                creatorName: { $first: "$creator.name" },
+                creatorImage: { $first: "$creator.image" },
+                totalParticipants: { $sum: "$participantsCount" },
+                contests: {
+                  $push: {
+                    contestName: "$contestName",
+                    contestDescription: "$description",
+                    participantsCount: "$participantsCount",
+                  },
+                },
+              },
+            },
+            { $sort: { totalParticipants: -1 } },
+            { $limit: 3 },
+          ])
+          .toArray();
 
-      res.send(topCreators);
+        res.send(topCreators);
+      } catch (error) {
+        console.error("Error fetching top creators:", error);
+        res.status(500).send({ message: "Error fetching top creators", error });
+      }
     });
 
     app.post("/contests", verifyToken, verifyCreator, async (req, res) => {
@@ -376,11 +408,13 @@ async function run() {
 
     // Fetch contest details
     app.get("/contests/:id", async (req, res) => {
-      const { id } = req.params;
+      const id = req.params.id;
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: "Invalid ObjectId format" });
+      }
+      const query = { _id: new ObjectId(id) };
+      const result = await contestCollection.findOne(query);
 
-      const result = await contestCollection.findOne({
-        _id: new ObjectId(id),
-      });
       res.send(result);
     });
 
