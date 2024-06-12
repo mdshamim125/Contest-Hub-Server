@@ -350,7 +350,7 @@ async function run() {
 
     // delete a contest
     app.delete(
-      "/contests/:id",
+      "/contest/:id",
       verifyToken,
       verifyCreator,
       async (req, res) => {
