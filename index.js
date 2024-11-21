@@ -191,7 +191,7 @@ async function run() {
       const result = await contestCollection
         .find({ category: { $regex: tag, $options: "i" } })
         .toArray();
-      console.log(result);
+      // console.log(result);
       res.send(result);
     });
 
@@ -257,7 +257,7 @@ async function run() {
             },
           },
           { $sort: { participantsCount: -1 } },
-          { $limit: 5 },
+          { $limit: 6 },
         ])
         .toArray();
 
@@ -349,17 +349,12 @@ async function run() {
     );
 
     // delete a contest
-    app.delete(
-      "/contest/:id",
-      verifyToken,
-      verifyCreator,
-      async (req, res) => {
-        const id = req.params.id;
-        const query = { _id: new ObjectId(id) };
-        const result = await contestCollection.deleteOne(query);
-        res.send(result);
-      }
-    );
+    app.delete("/contest/:id", verifyToken, verifyCreator, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await contestCollection.deleteOne(query);
+      res.send(result);
+    });
 
     // get single contest for creator
     app.get("/contest/:id", verifyToken, async (req, res) => {
@@ -515,6 +510,58 @@ async function run() {
 
       res.send(contest.participants || []);
     });
+
+    // Declare a winner for a contest submission
+    app.post(
+      "/contests/:contestId/submissions/:submissionId/declare-winner",
+      verifyToken,
+      verifyCreator,
+      async (req, res) => {
+        const { contestId, submissionId } = req.params;
+        console.log(contestId, submissionId);
+
+        try {
+          const contest = await contestCollection.findOne({
+            _id: new ObjectId(contestId),
+          });
+          if (!contest) {
+            return res.status(404).json({ message: "Contest not found" });
+          }
+
+          const participantIndex = contest.participants.findIndex(
+            (participants) => participants.userId === submissionId
+          );
+          if (participantIndex === -1) {
+            return res
+              .status(404)
+              .json({ message: "Submission not found in the contest" });
+          }
+
+          const updateDoc = {
+            $set: {
+              "participants.$[elem].isWinner": true,
+            },
+          };
+          const options = {
+            arrayFilters: [{ "elem.userId": submissionId }],
+          };
+          const result = await contestCollection.updateOne(
+            { _id: new ObjectId(contestId) },
+            updateDoc,
+            options
+          );
+
+          console.log(result);
+
+          res
+            .status(200)
+            .json({ message: "Winner declared successfully", result });
+        } catch (error) {
+          console.error("Error declaring winner:", error);
+          res.status(500).json({ message: "Server error", error });
+        }
+      }
+    );
 
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
