@@ -198,7 +198,18 @@ async function run() {
     // Fetch all contests
     app.get("/contests", verifyToken, verifyAdmin, async (req, res) => {
       const contests = await contestCollection.find({}).toArray();
-      // console.log(contests);
+      res.send(contests);
+    });
+
+    // Get contests won by a specific user
+    app.get("/contests/won-by/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const contests = await contestCollection
+        .find({
+          "submissions.email": email,
+          "submissions.isWinner": true,
+        })
+        .toArray();
       res.send(contests);
     });
 
