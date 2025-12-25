@@ -259,6 +259,237 @@ async function run() {
       }
     );
 
+    // // Admin statistics API
+    // app.get("/admin/stats", verifyToken, verifyAdmin, async (req, res) => {
+    //   try {
+    //     const totalUsers = await usersCollection.countDocuments();
+    //     const totalCreators = await usersCollection.countDocuments({
+    //       role: "creator",
+    //     });
+
+    //     const totalContests = await contestCollection.countDocuments();
+    //     const publishedContests = await contestCollection.countDocuments({
+    //       status: "confirmed",
+    //     });
+
+    //     const totalPayments = await paymentsCollection.countDocuments();
+
+    //     // total revenue
+    //     const revenueData = await paymentsCollection
+    //       .aggregate([
+    //         {
+    //           $group: {
+    //             _id: null,
+    //             totalRevenue: { $sum: "$price" },
+    //           },
+    //         },
+    //       ])
+    //       .toArray();
+
+    //     const totalRevenue = revenueData[0]?.totalRevenue || 0;
+
+    //     // total participants count
+    //     const participantData = await contestCollection
+    //       .aggregate([
+    //         {
+    //           $addFields: {
+    //             participantsCount: {
+    //               $cond: {
+    //                 if: { $isArray: "$participants" },
+    //                 then: { $size: "$participants" },
+    //                 else: 0,
+    //               },
+    //             },
+    //           },
+    //         },
+    //         {
+    //           $group: {
+    //             _id: null,
+    //             totalParticipants: { $sum: "$participantsCount" },
+    //           },
+    //         },
+    //       ])
+    //       .toArray();
+
+    //     const totalParticipants = participantData[0]?.totalParticipants || 0;
+
+    //     res.send({
+    //       totalUsers,
+    //       totalCreators,
+    //       totalContests,
+    //       publishedContests,
+    //       totalParticipants,
+    //       totalPayments,
+    //       totalRevenue,
+    //     });
+    //   } catch (error) {
+    //     console.error("Admin stats error:", error);
+    //     res.status(500).send({ message: "Failed to load admin statistics" });
+    //   }
+    // });
+
+    // //Contest Status Breakdown (Chart Ready)
+    // //Perfect for Pie / Bar Charts 👇
+    // app.get(
+    //   "/admin/contest-status",
+    //   verifyToken,
+    //   verifyAdmin,
+    //   async (req, res) => {
+    //     const data = await contestCollection
+    //       .aggregate([
+    //         {
+    //           $group: {
+    //             _id: "$status",
+    //             count: { $sum: 1 },
+    //           },
+    //         },
+    //       ])
+    //       .toArray();
+
+    //     res.send(data);
+    //   }
+    // );
+
+    // //User Role Distribution
+    // app.get("/admin/user-roles", verifyToken, verifyAdmin, async (req, res) => {
+    //   const data = await usersCollection
+    //     .aggregate([
+    //       {
+    //         $group: {
+    //           _id: "$role",
+    //           count: { $sum: 1 },
+    //         },
+    //       },
+    //     ])
+    //     .toArray();
+
+    //   res.send(data);
+    // });
+
+    app.get("/admin/statistics", verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const totalUsers = await usersCollection.countDocuments();
+        const totalCreators = await usersCollection.countDocuments({
+          role: "creator",
+        });
+        const totalContests = await contestCollection.countDocuments();
+        const confirmedContests = await contestCollection.countDocuments({
+          status: "confirmed",
+        });
+        const totalPayments = await paymentsCollection
+          .aggregate([
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: { $toDouble: "$price" } },
+              },
+            },
+          ])
+          .toArray();
+
+        res.send({
+          totalUsers,
+          totalCreators,
+          totalContests,
+          confirmedContests,
+          totalRevenue: totalPayments[0]?.totalRevenue || 0,
+        });
+      } catch (error) {
+        res.status(500).send({ message: "Failed to load admin statistics" });
+      }
+    });
+
+    app.get(
+      "/admin/analytics/weekly-contests",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const data = await contestCollection
+          .aggregate([
+            {
+              $group: {
+                _id: { $week: { $toDate: "$createdAt" } },
+                total: { $sum: 1 },
+              },
+            },
+            { $sort: { _id: 1 } },
+          ])
+          .toArray();
+
+        res.send(data);
+      }
+    );
+
+    app.get(
+      "/admin/analytics/monthly-users",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const data = await usersCollection
+          .aggregate([
+            {
+              $group: {
+                _id: { $month: { $toDate: "$timestamp" } },
+                total: { $sum: 1 },
+              },
+            },
+            { $sort: { _id: 1 } },
+          ])
+          .toArray();
+
+        res.send(data);
+      }
+    );
+
+    app.get(
+      "/admin/analytics/monthly-revenue",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const data = await paymentsCollection
+          .aggregate([
+            {
+              $group: {
+                _id: { $month: { $toDate: "$date" } },
+                revenue: { $sum: "$price" },
+              },
+            },
+            { $sort: { _id: 1 } },
+          ])
+          .toArray();
+
+        res.send(data);
+      }
+    );
+
+    //Top Contests by Participation
+    app.get(
+      "/admin/top-contests",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const data = await contestCollection
+          .aggregate([
+            {
+              $addFields: {
+                participantsCount: {
+                  $cond: {
+                    if: { $isArray: "$participants" },
+                    then: { $size: "$participants" },
+                    else: 0,
+                  },
+                },
+              },
+            },
+            { $sort: { participantsCount: -1 } },
+            { $limit: 5 },
+          ])
+          .toArray();
+
+        res.send(data);
+      }
+    );
+
     app.get("/contests/popular", async (req, res) => {
       const popularContests = await contestCollection
         .aggregate([
